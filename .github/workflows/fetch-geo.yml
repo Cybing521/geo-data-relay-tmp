@@ -1,0 +1,36 @@
+name: fetch-geo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Download GEO supplementary files
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          B=https://ftp.ncbi.nlm.nih.gov/geo/series
+          dl() { echo "== $2"; curl -fL --retry 8 --retry-delay 5 -C - -o "out/$2" "$1"; }
+          dl "$B/GSE315nnn/GSE315482/suppl/GSE315482_RAW.tar" GSE315482_RAW.tar
+          dl "$B/GSE315nnn/GSE315482/suppl/GSE315482_Batch2_R3.raw.tar.gz" GSE315482_Batch2_R3.raw.tar.gz
+          dl "$B/GSE315nnn/GSE315482/suppl/GSE315482_R2.SedSham.SedIR.integrated.rds" GSE315482_R2.SedSham.SedIR.integrated.rds
+          dl "$B/GSE276nnn/GSE276531/suppl/GSE276531_RAW.tar" GSE276531_RAW.tar
+          dl "$B/GSE279nnn/GSE279693/suppl/GSE279693_TPM.annot.xlsx" GSE279693_TPM.annot.xlsx
+          dl "$B/GSE254nnn/GSE254747/suppl/GSE254747_OE_Nec1s_raw_count.txt.gz" GSE254747_OE_Nec1s_raw_count.txt.gz
+          dl "$B/GSE254nnn/GSE254747/suppl/GSE254747_Zbp1_WT_vs_Zbp1_KO_raw_count.txt.gz" GSE254747_Zbp1_WT_vs_Zbp1_KO_raw_count.txt.gz
+          dl "$B/GSE136nnn/GSE136103/suppl/GSE136103_RAW.tar" GSE136103_RAW.tar
+          ls -l out
+          sha256sum out/* > out/SHA256SUMS
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete data-v1 --yes --cleanup-tag || true
+          gh release create data-v1 --title "GEO relay data-v1" --notes "Temporary relay of public GEO supplementary files for project data acquisition."
+          gh release upload data-v1 out/GSE315482_RAW.tar out/GSE315482_Batch2_R3.raw.tar.gz out/GSE315482_R2.SedSham.SedIR.integrated.rds out/GSE276531_RAW.tar out/GSE279693_TPM.annot.xlsx out/GSE254747_OE_Nec1s_raw_count.txt.gz out/GSE254747_Zbp1_WT_vs_Zbp1_KO_raw_count.txt.gz out/GSE136103_RAW.tar out/SHA256SUMS --clobber
