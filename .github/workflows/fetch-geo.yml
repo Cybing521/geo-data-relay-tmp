@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
+      - uses: actions/checkout@v4
       - name: Download GEO supplementary files
         run: |
           set -euo pipefail
@@ -29,6 +30,7 @@ jobs:
       - name: Create release and upload assets
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           gh release delete data-v1 --yes --cleanup-tag || true
