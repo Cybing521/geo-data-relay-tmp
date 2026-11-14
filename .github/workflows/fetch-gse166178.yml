@@ -1,0 +1,37 @@
+name: fetch-gse166178
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fetch-gse166178.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download GSE166178 RAW tar
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          B=https://ftp.ncbi.nlm.nih.gov/geo/series
+          curl -fL --retry 8 --retry-delay 5 -C - -o out/GSE166178_RAW.tar \
+            "$B/GSE166nnn/GSE166178/suppl/GSE166178_RAW.tar"
+          ls -l out
+          sha256sum out/GSE166178_RAW.tar > out/SHA256SUMS_gse166178
+          echo "== first 80 members =="
+          tar -tf out/GSE166178_RAW.tar | head -80
+      - name: Create release and upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release delete gse166178-v1 --yes --cleanup-tag || true
+          gh release create gse166178-v1 \
+            --title "GSE166178 relay" \
+            --notes "Temporary relay of public GEO supplementary file GSE166178_RAW.tar (public data)."
+          gh release upload gse166178-v1 out/GSE166178_RAW.tar out/SHA256SUMS_gse166178 --clobber
