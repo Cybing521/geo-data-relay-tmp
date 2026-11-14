@@ -12,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download GEO supplementary files
+        if: ${{ github.event.inputs.skip_geo != 'true' }}
         run: |
           set -euo pipefail
           mkdir -p out
@@ -27,6 +28,16 @@ jobs:
           dl "$B/GSE136nnn/GSE136103/suppl/GSE136103_RAW.tar" GSE136103_RAW.tar
           ls -l out
           sha256sum out/* > out/SHA256SUMS
+
+      - name: Download TCGA-LIHC (Xena)
+        run: |
+          set -euo pipefail
+          mkdir -p out_tcga
+          curl -fL --retry 8 --retry-delay 5 -o out_tcga/TCGA-LIHC_HiSeqV2.gz "https://tcga-xena-hub.s3.us-east-1.amazonaws.com/download/TCGA.LIHC.sampleMap%2FHiSeqV2.gz"
+          curl -fL --retry 8 --retry-delay 5 -o out_tcga/TCGA-LIHC_clinicalMatrix.tsv "https://tcga-xena-hub.s3.us-east-1.amazonaws.com/download/TCGA.LIHC.sampleMap%2FLIHC_clinicalMatrix"
+          curl -fL --retry 8 --retry-delay 5 -o out_tcga/TCGA-LIHC_survival.txt "https://tcga-xena-hub.s3.us-east-1.amazonaws.com/download/survival%2FLIHC_survival.txt"
+          ls -l out_tcga
+          sha256sum out_tcga/* > out_tcga/SHA256SUMS_tcga
       - name: Create release and upload assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,4 +46,4 @@ jobs:
           set -euo pipefail
           gh release delete data-v1 --yes --cleanup-tag || true
           gh release create data-v1 --title "GEO relay data-v1" --notes "Temporary relay of public GEO supplementary files for project data acquisition."
-          gh release upload data-v1 out/GSE315482_RAW.tar out/GSE315482_Batch2_R3.raw.tar.gz out/GSE315482_R2.SedSham.SedIR.integrated.rds out/GSE276531_RAW.tar out/GSE279693_TPM.annot.xlsx out/GSE254747_OE_Nec1s_raw_count.txt.gz out/GSE254747_Zbp1_WT_vs_Zbp1_KO_raw_count.txt.gz out/GSE136103_RAW.tar out/SHA256SUMS --clobber
+          gh release upload data-v1 out/GSE315482_RAW.tar out/GSE315482_Batch2_R3.raw.tar.gz out/GSE315482_R2.SedSham.SedIR.integrated.rds out/GSE276531_RAW.tar out/GSE279693_TPM.annot.xlsx out/GSE254747_OE_Nec1s_raw_count.txt.gz out/GSE254747_Zbp1_WT_vs_Zbp1_KO_raw_count.txt.gz out/GSE136103_RAW.tar out/SHA256SUMS out_tcga/TCGA-LIHC_HiSeqV2.gz out_tcga/TCGA-LIHC_clinicalMatrix.tsv out_tcga/TCGA-LIHC_survival.txt out_tcga/SHA256SUMS_tcga --clobber
