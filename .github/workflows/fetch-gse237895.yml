@@ -17,11 +17,28 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          B=https://ftp.ncbi.nlm.nih.gov/geo/series
-          curl -fL --retry 8 --retry-delay 5 -C - -o out/GSE237895_RAW.tar \
-            "$B/GSE237nnn/GSE237895/suppl/GSE237895_RAW.tar"
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          URL_HTTPS="https://ftp.ncbi.nlm.nih.gov/geo/series/GSE237nnn/GSE237895/suppl/GSE237895_RAW.tar"
+          URL_CGI="https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE237895&format=file"
+          URL_FTP="ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE237nnn/GSE237895/suppl/GSE237895_RAW.tar"
+          ok=0
+          for U in "$URL_HTTPS" "$URL_CGI" "$URL_FTP"; do
+            echo "Trying: $U"
+            rm -f out/GSE237895_RAW.tar
+            if curl -fL -A "$UA" --retry 4 --retry-delay 3 --connect-timeout 20 -o out/GSE237895_RAW.tar "$U"; then
+              if tar -tf out/GSE237895_RAW.tar >/dev/null 2>&1; then
+                ok=1
+                break
+              fi
+            fi
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "All curl attempts failed, trying ftp wget..."
+            rm -f out/GSE237895_RAW.tar
+            wget -U "$UA" -O out/GSE237895_RAW.tar "$URL_FTP"
+            tar -tf out/GSE237895_RAW.tar >/dev/null
+          fi
           ls -lh out/GSE237895_RAW.tar
-          tar -tf out/GSE237895_RAW.tar >/dev/null
           (cd out && sha256sum GSE237895_RAW.tar > SHA256SUMS_gse237895)
           cat out/SHA256SUMS_gse237895
       - name: Create release and upload asset
