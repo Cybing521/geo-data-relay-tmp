@@ -1,0 +1,37 @@
+name: fetch-gse237895
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fetch-gse237895.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download GSE237895 RAW tar
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          B=https://ftp.ncbi.nlm.nih.gov/geo/series
+          curl -fL --retry 8 --retry-delay 5 -C - -o out/GSE237895_RAW.tar \
+            "$B/GSE237nnn/GSE237895/suppl/GSE237895_RAW.tar"
+          ls -lh out/GSE237895_RAW.tar
+          tar -tf out/GSE237895_RAW.tar >/dev/null
+          (cd out && sha256sum GSE237895_RAW.tar > SHA256SUMS_gse237895)
+          cat out/SHA256SUMS_gse237895
+      - name: Create release and upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release delete gse237895-v1 --yes --cleanup-tag || true
+          gh release create gse237895-v1 \
+            --title "GSE237895 relay" \
+            --notes "Temporary relay of public GEO supplementary file GSE237895_RAW.tar (public data)."
+          gh release upload gse237895-v1 out/GSE237895_RAW.tar out/SHA256SUMS_gse237895 --clobber
