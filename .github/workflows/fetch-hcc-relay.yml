@@ -1,0 +1,62 @@
+name: fetch-hcc-relay
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fetch-hcc-relay.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Xena PanCan, GEO GPL/matrices, OSF DataFiles, ICI clinical
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          UA="Mozilla/5.0"
+          # 1. Xena PanCan clinical + immune subtype + expression
+          curl -fL -A "$UA" --retry 5 -o out/Survival_SupplementalTable_S1_20171025_xena_sp \
+            "https://pancanatlas.xenahubs.net/download/Survival_SupplementalTable_S1_20171025_xena_sp"
+          curl -fL -A "$UA" --retry 5 -o out/Subtype_Immune_Model_Based.txt.gz \
+            "https://pancanatlas.xenahubs.net/download/Subtype_Immune_Model_Based.txt.gz"
+          curl -fL -A "$UA" --retry 5 -o out/EBPlusPlus_PANCAN.geneExp.xena.gz \
+            "https://pancanatlas.xenahubs.net/download/EB%2B%2BAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz"
+          # 2. GSE14520-GPL3921 & GSE116174 clinical & GPL annotations
+          curl -fL -A "$UA" --retry 5 -o out/GSE14520-GPL3921_series_matrix.txt.gz \
+            "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE14nnn/GSE14520/matrix/GSE14520-GPL3921_series_matrix.txt.gz"
+          curl -fL -A "$UA" --retry 5 -o out/GSE116174_HCC-64-u133_plus_2_clinical_data.xls.gz \
+            "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE116nnn/GSE116174/suppl/GSE116174_HCC-64-u133_plus_2_clinical_data.xls.gz"
+          curl -fL -A "$UA" --retry 5 -o out/GPL3921.annot.gz \
+            "https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPL3nnn/GPL3921/annot/GPL3921.annot.gz" || true
+          curl -fL -A "$UA" --retry 5 -o out/GPL10558.annot.gz \
+            "https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPL10nnn/GPL10558/annot/GPL10558.annot.gz" || true
+          curl -fL -A "$UA" --retry 5 -o out/GPL13158.annot.gz \
+            "https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPL13nnn/GPL13158/annot/GPL13158.annot.gz" || true
+          # 3. Riaz 2017 GSE91061 clinical survival + response
+          curl -fL -A "$UA" --retry 5 -o out/bms038_clinical_data.csv \
+            "https://raw.githubusercontent.com/riazn/bms038_analysis/master/data/bms038_clinical_data.csv"
+          # 4. oncoPredict OSF DataFiles.zip (686MB)
+          curl -fL -A "$UA" --retry 5 -o out/DataFiles.zip \
+            "https://files.us.osf.io/v1/resources/c6tfx/providers/osfstorage/624e056b9fcdf400554fe1ae"
+          # Split EBPlusPlus if >= 1.9GB just in case
+          sz=$(stat -c%s out/EBPlusPlus_PANCAN.geneExp.xena.gz)
+          echo "EBPlusPlus size: $sz"
+          if [ "$sz" -ge 1900000000 ]; then
+            split -b 1500m out/EBPlusPlus_PANCAN.geneExp.xena.gz out/EBPlusPlus_PANCAN.part_
+            rm -f out/EBPlusPlus_PANCAN.geneExp.xena.gz
+          fi
+          ls -lh out/
+          (cd out && sha256sum * > SHA256SUMS_hcc)
+      - name: Upload release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release delete hcc-relay-v1 --yes --cleanup-tag || true
+          gh release create hcc-relay-v1 --title "HCC relay v1" --notes "Temporary relay of public Xena PanCan, GEO GPL, ICI clinical, and OSF oncoPredict training data."
+          gh release upload hcc-relay-v1 out/* --clobber
