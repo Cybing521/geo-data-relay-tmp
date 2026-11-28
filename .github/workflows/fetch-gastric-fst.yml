@@ -1,0 +1,37 @@
+name: fetch-gastric-fst
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download gastric FST public datasets
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          UA="Mozilla/5.0"
+          dl() { echo "== $2"; curl -fL -A "$UA" --retry 5 --retry-delay 5 -o "out/$2" "$1" || echo "WARN failed: $2"; }
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE15nnn/GSE15459/matrix/GSE15459_series_matrix.txt.gz" GSE15459_series_matrix.txt.gz
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE26nnn/GSE26253/matrix/GSE26253_series_matrix.txt.gz" GSE26253_series_matrix.txt.gz
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE163nnn/GSE163558/suppl/GSE163558_RAW.tar" GSE163558_RAW.tar
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE167nnn/GSE167297/suppl/GSE167297_RAW.tar" GSE167297_RAW.tar
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183904/matrix/GSE183904_series_matrix.txt.gz" GSE183904_series_matrix.txt.gz
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE134nnn/GSE134520/matrix/GSE134520_series_matrix.txt.gz" GSE134520_series_matrix.txt.gz
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE163nnn/GSE163558/matrix/GSE163558_series_matrix.txt.gz" GSE163558_series_matrix.txt.gz
+          dl "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE167nnn/GSE167297/matrix/GSE167297_series_matrix.txt.gz" GSE167297_series_matrix.txt.gz
+          dl "https://zenodo.org/api/records/19337393/files/data_open.zip/content" data_open.zip
+          ls -lh out/
+          (cd out && sha256sum * > SHA256SUMS_gastric_fst)
+      - name: Upload release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release delete gastric-fst-v1 --yes --cleanup-tag || true
+          gh release create gastric-fst-v1 --title "Gastric FST relay v1" --notes "Temporary relay of public GEO and Zenodo datasets."
+          gh release upload gastric-fst-v1 out/* --clobber
